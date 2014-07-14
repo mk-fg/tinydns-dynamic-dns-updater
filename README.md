@@ -23,6 +23,21 @@ Everything is under development, nothing works yet.
 
 
 
+Usage
+--------------------
+
+TODO
+
+### Requirements
+
+ * Python 2.7 (not 3.X)
+
+ * [PyNaCl](http://pynacl.readthedocs.org/)
+
+ * [netaddr](https://github.com/drkjam/netaddr/)
+
+
+
 Operation details
 --------------------
 
