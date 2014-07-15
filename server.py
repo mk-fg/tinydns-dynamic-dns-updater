@@ -172,8 +172,6 @@ def zone_update(src, src_ts, updates):
 	src.seek(0)
 	res, src_buff = list(), src.read()
 
-	# XXX: update bol and ts_span markers here as well
-
 	pos, pos_used = None, set()
 	updates.sort(reverse=True) # last update pos first
 	for u in updates:
@@ -254,7 +252,10 @@ def zone_update_loop(src_path, sock):
 				' packet: key_id=%s ts=%.2f addr=%s', key_id, ts, addr )
 		else:
 			with open(src_path, 'a+') as src:
+				# XXX: update bol and ts_span markers there as well
 				src_ts = zone_update(src, src_ts, updates)
+			with open(src_path, 'rb') as src: # XXX: extra work
+				src_ts, entries = zone_parse(src)
 
 
 def main(args=None):
