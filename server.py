@@ -173,7 +173,7 @@ class InvalidPacket(Exception): pass
 class ZoneMtimeUpdated(Exception): pass
 
 @with_src_lock(shared=False)
-def zone_update(src, src_ts, updates):
+def zone_update_file(src, src_ts, updates):
 	def src_stat_check():
 		src_ts_now = os.fstat(src.fileno()).st_mtime
 		if abs(src_ts_now - src_ts) > 1:
@@ -236,6 +236,42 @@ def zone_update(src, src_ts, updates):
 
 	return src_ts, updates
 
+def zone_update(src_path, src_ts, blocks, key_id, ts, addr):
+	updates, updates_addr, pos_idx = list(), False, list()
+	for block in blocks:
+		for entry in block['names']:
+			pos, obj = entry['bol'], entry
+			pos_idx.append((pos, obj))
+			if entry['addr'].version == addr.version and entry['addr'] != addr:
+				updates.append(ZUAddr(pos, obj, addr))
+				updates_addr = True # don't bother bumping timestamps only
+		pos, obj = block['ts_span'][1], block
+		pos_idx.append((pos, obj))
+		updates.append(ZUTime(pos, obj, ts))
+
+	if not updates_addr:
+		log.debug( 'No address changes in valid update'
+			' packet: key_id=%s ts=%.2f addr=%s', key_id, ts, addr )
+		return src_ts
+
+	with open(src_path, 'a+') as src:
+		src_ts, updates = zone_update_file(src, src_ts, updates)
+
+	pos_idx.sort()
+	pos_diff, updates = 0, dict((id(u.obj), u) for u in updates)
+	for pos, obj in pos_idx:
+		k = id(obj)
+		if k in updates:
+			updates[k], u = None, updates[k]
+			pos_diff = u.vals.pop('pos_diff')
+			obj.update(u.vals)
+		if isinstance(obj, ZEntry): obj['bol'] += pos_diff
+		elif isinstance(obj, ZBlock):
+			obj['ts_span'] = tuple((v + pos_diff) for v in obj['ts_span'])
+		else: raise ValueError(obj)
+
+	return src_ts
+
 def zone_update_loop(src_path, sock):
 	with open(src_path, 'rb') as src:
 		src_ts, entries = zone_parse(src)
@@ -268,36 +304,7 @@ def zone_update_loop(src_path, sock):
 		addr = netaddr.IPAddress(addr_raw)
 		if addr.is_ipv4_mapped(): addr = addr.ipv4()
 
-		updates, updates_addr, pos_idx = list(), False, list()
-		for block in blocks:
-			for entry in block['names']:
-				pos, obj = entry['bol'], entry
-				pos_idx.append((pos, obj))
-				if entry['addr'].version == addr.version and entry['addr'] != addr:
-					updates.append(ZUAddr(pos, obj, addr))
-					updates_addr = True # don't bother bumping timestamps only
-			pos, obj = block['ts_span'][1], block
-			pos_idx.append((pos, obj))
-			updates.append(ZUTime(pos, obj, ts))
-		if not updates_addr:
-			log.debug( 'No address changes in valid update'
-				' packet: key_id=%s ts=%.2f addr=%s', key_id, ts, addr )
-		else:
-			with open(src_path, 'a+') as src:
-				src_ts, updates = zone_update(src, src_ts, updates)
-
-			pos_idx.sort()
-			pos_diff, updates = 0, dict((id(u.obj), u) for u in updates)
-			for pos, obj in pos_idx:
-				k = id(obj)
-				if k in updates:
-					updates[k], u = None, updates[k]
-					pos_diff = u.vals.pop('pos_diff')
-					obj.update(u.vals)
-				if isinstance(obj, ZEntry): obj['bol'] += pos_diff
-				elif isinstance(obj, ZBlock):
-					obj['ts_span'] = tuple((v + pos_diff) for v in obj['ts_span'])
-				else: raise ValueError(obj)
+		src_ts = zone_update(src_path, src_ts, blocks, key_id, ts, addr)
 
 
 def main(args=None):
