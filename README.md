@@ -72,6 +72,10 @@ C: DEBUG:root:Sending 1 update msg(s) to: '127.0.0.1' (port: 5533, af: 2, sockty
 S: DEBUG:root:Updating zone entry for name 'extra.random.name' (type: +): 37.98.242.143 -> 127.0.0.1
 S: DEBUG:root:Updating zone entry for name 'some.random.name' (type: +): 37.98.242.143 -> 127.0.0.1
 S: DEBUG:root:Updating zone block '1405421249.89 jLxAZY-vnJfubHr8srYy3mIN2_mCi_OExUwHOluOlLY=' ts: 1405421249.89 -> 1405421540.03
+
+C% ./client.py 127.0.0.1:5533 ./client.key
+
+S: DEBUG:root:No address changes in valid update packet: key_id=QlH0RDCxXrI2OvL2OUA4DBeDY79X ts=1405423510.34 addr=127.0.0.1
 ```
 
 

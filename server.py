@@ -241,14 +241,15 @@ def zone_update_loop(src_path, sock):
 		addr = netaddr.IPAddress(addr_raw)
 		if addr.is_ipv4_mapped(): addr = addr.ipv4()
 
-		updates = list()
+		updates, updates_addr = list(), False
 		for block in blocks:
 			for entry in block['names']:
 				if entry['addr'].version == addr.version and entry['addr'] != addr:
 					updates.append(ZoneUpdateAddr(entry['bol'], entry, addr))
+					updates_addr = True # don't bother bumping timestamps only
 			updates.append(ZoneUpdateTime(block['ts_span'][0], block, ts))
-		if not updates:
-			log.debug( 'No changes in valid update'
+		if not updates_addr:
+			log.debug( 'No address changes in valid update'
 				' packet: key_id=%s ts=%.2f addr=%s', key_id, ts, addr )
 		else:
 			with open(src_path, 'a+') as src:
