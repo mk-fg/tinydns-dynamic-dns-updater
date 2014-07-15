@@ -134,3 +134,30 @@ Links
  * [djb's cr.yp.to page for djbdns](http://cr.yp.to/djbdns.html)
 
  * [Ed25519 public-key signature system info](http://ed25519.cr.yp.to/)
+
+
+
+TODO
+--------------------
+
+ * Don't re-parse zone file after every update, just re-calculate value
+   positions on update.
+
+ * Run cdb rebuild or any optional hook script after updates on server.
+
+ * Add "systemd.daemon" integration, to easily work with privileged ports via
+   socket passed from there, suppport socket activation and timeout.
+
+ * Add uid/gid drop (after socket bind) option on the server.
+
+ * Add "send several packets" option to the client.
+
+ * Add "--genkey" option to server as well.
+
+ * Add server option to bump timestamps even if no addrs are changed.
+
+ * Add server/client option to control address family when resolving hostnames
+   instead of simply throwing error on any ambiguity.
+
+ * Add server/client option to "pick any addr" when resolving hostnames instead
+   of throwing error on any ambiguity.
