@@ -160,7 +160,7 @@ def main(args=None):
 
 	keys = dict()
 	for k in opts.key:
-		if k.startswith(os.sep):
+		if k and k[0] in '/.':
 			with open(k, 'rb') as src: k = src.read()
 		for key in map(key_decode_signing, k.split()):
 			key_id = key_get_id(key.verify_key)

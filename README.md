@@ -62,9 +62,9 @@ C: DEBUG:root:Sending 1 update msg(s) to: '::1' (port: 5533, af: 10, socktype: 2
 S: DEBUG:root:Updating zone entry for name 'some.random.name' (type: 6): 2a00:1450:4010:c08::66 -> ::1
 S: DEBUG:root:Updating zone block '0 jLxAZY-vnJfubHr8srYy3mIN2_mCi_OExUwHOluOlLY=' ts: 0.00 -> 1405421249.89
 
-[...it's a BAD idea to pass keys on cli like that, so store it to "/tmp/client.key" file...]
+[...it's a BAD idea to pass keys on cli like that, so store it to "./client.key" file...]
 
-C% ./client.py --debug 127.0.0.1:5533 /tmp/client.key
+C% ./client.py --debug 127.0.0.1:5533 ./client.key
 
 C: DEBUG:root:Resolving addr: '127.0.0.1' (params: [5533, 0, 2, 0])
 C: DEBUG:root:Sending 1 update msg(s) to: '127.0.0.1' (port: 5533, af: 2, socktype: 2)
@@ -100,7 +100,7 @@ Operation details
    sent over IPv4 or IPv6, and whether there's any SNAT translation in-between.
 
  * If hostname is passed anywhere instead of address, it is resolved by
-   getaddrinfo(2), and if there are several different results, error is raised
+   getaddrinfo(3), and if there are several different results, error is raised
    to prevent ambiguity, esp. wrt IPv4/IPv6 resolution (see also
    `/etc/gai.conf`).
 
