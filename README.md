@@ -24,6 +24,8 @@ server instead.
 Usage
 --------------------
 
+See --help output for each command for full args/opts reference.
+
 Example ("S" is for server terminal, "C" - client):
 
 ```
@@ -139,10 +141,3 @@ Links
  * [djb's cr.yp.to page for djbdns](http://cr.yp.to/djbdns.html)
 
  * [Ed25519 public-key signature system info](http://ed25519.cr.yp.to/)
-
-
-
-TODO
---------------------
-
- * Run cdb rebuild or any optional hook script after updates on server.

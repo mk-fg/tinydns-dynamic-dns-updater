@@ -6,6 +6,7 @@ import itertools as it, operator as op, functools as ft
 from contextlib import contextmanager, closing
 from collections import namedtuple, defaultdict
 from tempfile import NamedTemporaryFile
+from subprocess import Popen, PIPE, STDOUT
 import os, sys, types, re, socket, struct, fcntl, random
 
 from nacl.exceptions import BadSignatureError
@@ -275,8 +276,8 @@ def zone_update_file(src, src_ts, updates):
 
 	return src_ts, updates
 
-def zone_update( src_path, src_ts,
-		blocks, key_id, ts, addr, force_updates=False ):
+def zone_update( src_path, src_ts, blocks, key_id,
+		ts, addr, update_cmd=None, force_updates=False ):
 	updates, updates_addr, pos_idx = list(), False, list()
 	for block in blocks:
 		for entry in block['names']:
@@ -311,9 +312,18 @@ def zone_update( src_path, src_ts,
 			obj['ts_span'] = tuple((v + pos_diff) for v in obj['ts_span'])
 		else: raise ValueError(obj)
 
+	if update_cmd:
+		log.debug('Running post-update cmd: %s', ' '.join(update_cmd))
+		err = Popen(update_cmd).wait()
+		log.debug('Post-update cmd finished (code: %s)', err)
+		if err:
+			log.error('Post-update command'
+				' exited with non-zero code: %s', err)
+
 	return src_ts
 
-def zone_update_loop(src_path, sock, force_updates=False):
+def zone_update_loop( src_path, sock,
+		update_cmd=None, force_updates=False ):
 	src_ts, entries = zone_parse_file(src_path)
 
 	while True:
@@ -348,7 +358,7 @@ def zone_update_loop(src_path, sock, force_updates=False):
 			try:
 				src_ts_new = zone_update(
 					src_path, src_ts, blocks, key_id, ts, addr,
-					force_updates=force_updates )
+					update_cmd=update_cmd, force_updates=force_updates )
 			except ZoneMtimeUpdated as err:
 				log.info( 'Reloading zone_file (%r)'
 					' due to mtime change: %.2f -> %.2f', src_path, *err.args )
@@ -377,6 +387,11 @@ def main(args=None):
 				' "dynamic: <ts> <pubkey> <pubkey2> ..." immediately before it (no empty lines'
 				' or other comments separating these) can be updated by packet with'
 				' proper ts/signature.')
+
+	parser.add_argument('update_command', nargs='*',
+		help='Optional command to run on zone file updates and its arguments (if any).'
+			' If --uid is specified, all commands will be run after dropping privileges.'
+			' Use "--" before it to make sure that none of its args get interpreted by this script.')
 
 	parser.add_argument('-g', '--genkey', action='store_true',
 		help='Generate a new random signing/verify'
@@ -439,7 +454,8 @@ def main(args=None):
 	if opts.uid: drop_privileges(opts.uid)
 
 	with open(opts.zone_file, 'rb'): pass # access check
-	zone_update_loop( opts.zone_file, sock,
+	zone_update_loop(
+		opts.zone_file, sock, opts.update_command,
 		force_updates=opts.update_timestamps )
 
 if __name__ == '__main__': sys.exit(main())
