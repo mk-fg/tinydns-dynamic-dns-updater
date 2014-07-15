@@ -15,9 +15,9 @@ All configuration for server is contained within djbdns zone file itself, client
 only needs commandline parameters for server and path to the client key.
 
 This approach differs from solutions for same task I've seen in that it doesn't
-involve php, http server, passwords (usually passed in plaintext over net), tls
-or similar stuff, but requires running simple python scripts on both client and
-server instead.
+involve php, http server, passwords (usually passed in plaintext over net), tls,
+querying random net hosts for your IP or similar stuff, but requires running
+simple python scripts on both client and server instead.
 
 
 
@@ -92,7 +92,7 @@ S: DEBUG:root:No address changes in valid update packet: key_id=QlH0RDCxXrI2OvL2
 
  * (optional)
    [python-systemd](http://www.freedesktop.org/software/systemd/python-systemd/)
-   - to use systemd socket activation for server (--systemd option).
+   \- to use systemd socket activation for server (--systemd option).
 
 
 
