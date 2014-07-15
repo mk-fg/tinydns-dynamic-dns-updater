@@ -15,8 +15,9 @@ All configuration for server is contained within djbdns zone file itself, client
 only needs commandline parameters for server and path to the client key.
 
 This approach differs from solutions for same task I've seen in that it doesn't
-involve php, http server, passwords or similar stuff, but requires running
-simple python scripts on both client and server instead.
+involve php, http server, passwords (usually passed in plaintext over net), tls
+or similar stuff, but requires running simple python scripts on both client and
+server instead.
 
 
 
@@ -145,5 +146,3 @@ TODO
 --------------------
 
  * Run cdb rebuild or any optional hook script after updates on server.
-
- * Add "send several packets" option to the client.

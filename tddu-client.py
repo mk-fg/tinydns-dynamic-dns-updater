@@ -94,6 +94,40 @@ def build_msg(key, ts=None, key_id=None):
 	assert len(msg_sig) == sig_len, [msg_sig, sig_len]
 	return struct.pack(msg_fmt, msg_data, msg_sig)
 
+def dispatch_packets( dst, bind, keys,
+		ts=None, family=socket.AF_UNSPEC, random_addr=False ):
+	try: host, port = dst.rsplit(':', 1)
+	except ValueError: host, port = dst, default_port
+	dst_socktype, dst_port = socket.SOCK_DGRAM, int(port)
+	dst_af, dst_addr = get_socket_info(
+		host, dst_port,
+		family=family, socktype=dst_socktype,
+		force_unique_address=not random_addr )
+
+	if bind:
+		try: host, port = bind.rsplit(':', 1)
+		except ValueError:
+			parser.error('--bind argument must be in "host:port" format')
+		else:
+			bind_socktype, bind_port = socket.SOCK_DGRAM, int(port)
+			bind_af, bind_addr = get_socket_info(
+				host, bind_port,
+				family=family, socktype=bind_socktype )
+
+	msgs = list(build_msg(key, ts, key_id) for key_id, key in keys.viewitems())
+
+	log.debug( 'Sending %s update msg(s) to: %r (port: %s,'
+		' af: %s, socktype: %s)', len(msgs), dst_addr, dst_port, dst_af, dst_socktype )
+	sock = socket.socket(dst_af, dst_socktype)
+	if bind:
+		assert bind_af == dst_af and bind_socktype == dst_socktype,\
+			[bind_af, dst_af, bind_socktype, dst_socktype]
+		log.debug('Binding sending socket to: %r (port: %s)', bind_addr, bind_port)
+		sock.bind((bind_addr, bind_port))
+	for msg in msgs:
+		sock.sendto(msg, (dst_addr, dst_port))
+
+
 
 def main(args=None):
 	import argparse
@@ -115,8 +149,6 @@ def main(args=None):
 				' for use on destination host (only verify key is needed there) and with this'
 				' script (signing key).')
 
-	# XXX: option to send N time-spaced updates
-
 	parser.add_argument('-g', '--genkey', action='store_true',
 		help='Generate a new random signing/verify'
 			' Ed25519 keypair, print both keys to stdout and exit.')
@@ -132,6 +164,18 @@ def main(args=None):
 	parser.add_argument('-r', '--random-addr', action='store_true',
 		help='Pick random address from those returned by getaddrinfo() for destination.'
 			' Default is to throw error if several addresses are returned.')
+
+	parser.add_argument('-n', '--packets',
+		metavar='n', type=int, default=1,
+		help='Number of UDP packets to dispatch (default: %(default)s).')
+	parser.add_argument('--send-delay',
+		metavar='{ n | n:next }', default='1:mul:2',
+		help='Delay between dispatched packets.'
+			' Can be specified either simply as "n" (float) or as "n:next", where "next"'
+					' is an operator (see python "operator" module) to use to calculate each next delay'
+					' and possible args to it (separated by colon(s)).'
+				' Examples: 2.5 (2.5, 2.5, ...), 1:mul:2 (1, 2, 4, 8, ...),'
+					' 1:add:5 (1, 6, 11, 16, ...), 10:sub:1 (10, 9, 8, ...). Default: %(default)s)')
 
 	parser.add_argument('-d', '--debug', action='store_true', help='Verbose operation mode.')
 	opts = parser.parse_args(sys.argv[1:] if args is None else args)
@@ -153,25 +197,15 @@ def main(args=None):
 	if isinstance(opts.ip_af, types.StringTypes):
 		opts.ip_af = {'4': socket.AF_INET, '6': socket.AF_INET6}[opts.ip_af]
 
-	try: host, port = opts.destination.rsplit(':', 1)
-	except ValueError: host, port = opts.destination, default_port
-	dst_socktype, dst_port = socket.SOCK_DGRAM, int(port)
-	dst_af, dst_addr = get_socket_info(
-		host, dst_port,
-		family=opts.ip_af, socktype=dst_socktype,
-		force_unique_address=not opts.random_addr )
-
-	bind = False
-	if opts.bind:
-		bind = True
-		try: host, port = opts.bind.rsplit(':', 1)
-		except ValueError:
-			parser.error('--bind argument must be in "host:port" format')
-		else:
-			bind_socktype, bind_port = socket.SOCK_DGRAM, int(port)
-			bind_af, bind_addr = get_socket_info(
-				host, bind_port,
-				family=opts.ip_af, socktype=bind_socktype )
+	assert opts.packets > 0, opts.packets
+	if ':' not in opts.send_delay:
+		n, n_op = float(opts.send_delay), lambda n: n
+	else:
+		n, n_op = opts.send_delay.split(':', 1)
+		try: n_op, args = n_op.split(':', 1)
+		except ValueError: args = None
+		n, n_op = float(n), getattr(op, n_op)
+		if args: n_op = ft.partial(n_op, *map(float, args.split(':')))
 
 	keys = dict()
 	for k in opts.key:
@@ -185,17 +219,16 @@ def main(args=None):
 			else: keys[key_id] = key
 
 	ts = time.time()
-	msgs = list(build_msg(key, ts, key_id) for key_id, key in keys.viewitems())
-
-	log.debug( 'Sending %s update msg(s) to: %r (port: %s,'
-		' af: %s, socktype: %s)', len(msgs), dst_addr, dst_port, dst_af, dst_socktype )
-	sock = socket.socket(dst_af, dst_socktype)
-	if bind:
-		assert bind_af == dst_af and bind_socktype == dst_socktype,\
-			[bind_af, dst_af, bind_socktype, dst_socktype]
-		log.debug('Binding sending socket to: %r (port: %s)', bind_addr, bind_port)
-		sock.bind((bind_addr, bind_port))
-	for msg in msgs:
-		sock.sendto(msg, (dst_addr, dst_port))
+	for i in xrange(opts.packets):
+		delay = time.time()
+		dispatch_packets(
+			opts.destination, opts.bind, keys, ts,
+			family=opts.ip_af, random_addr=opts.random_addr )
+		if i < opts.packets - 1:
+			ts = time.time()
+			delay = max(0, (delay + n) - ts)
+			log.debug('Delay before sending next packet: %.2f', delay)
+			n = n_op(n)
+			time.sleep(delay)
 
 if __name__ == '__main__': sys.exit(main())

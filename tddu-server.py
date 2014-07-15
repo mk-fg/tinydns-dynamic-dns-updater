@@ -6,7 +6,7 @@ import itertools as it, operator as op, functools as ft
 from contextlib import contextmanager, closing
 from collections import namedtuple, defaultdict
 from tempfile import NamedTemporaryFile
-import os, sys, re, socket, struct, fcntl
+import os, sys, types, re, socket, struct, fcntl
 
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
