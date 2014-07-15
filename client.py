@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 import itertools as it, operator as op, functools as ft
-import os, sys, socket, struct, time
+import os, sys, types, socket, struct, time
 
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
@@ -97,6 +97,7 @@ def build_msg(key, ts=None, key_id=None):
 def main(args=None):
 	import argparse
 	parser = argparse.ArgumentParser(
+		usage='%(prog)s [options]', # argparse fails to build that for $REASONS
 		description='Tool to update tinydns zone file entries for host remotely.')
 
 	parser.add_argument('destination', nargs='?',
@@ -123,6 +124,10 @@ def main(args=None):
 		help='Host/port to bind sending socket to.'
 			' Can be useful for firewall rules and to explicitly bind to external interface.'
 			' Example: 1.2.3.4:8793')
+	parser.add_argument('-v', '--ip-af',
+		metavar='{ 4 | 6 }', choices=('4', '6'), default=socket.AF_UNSPEC,
+		help='Resolve hostname(s) (if any) using specified address family version.'
+			' Either "4" or "6", no restriction is appled by default.')
 
 	parser.add_argument('-d', '--debug', action='store_true', help='Verbose operation mode.')
 	opts = parser.parse_args(sys.argv[1:] if args is None else args)
@@ -141,11 +146,14 @@ def main(args=None):
 	if not opts.destination: parser.error('Destination endpoint must be specified')
 	if not opts.key: parser.error('At least one key must be specified')
 
+	if isinstance(opts.ip_af, types.StringTypes):
+		opts.ip_af = {'4': socket.AF_INET, '6': socket.AF_INET6}[opts.ip_af]
+
 	try: host, port = opts.destination.rsplit(':', 1)
 	except ValueError: host, port = opts.destination, default_port
 	dst_socktype, dst_port = socket.SOCK_DGRAM, int(port)
-	dst_af, dst_addr = get_socket_info( host,
-		dst_port, socktype=dst_socktype, force_unique_address=True )
+	dst_af, dst_addr = get_socket_info( host, dst_port,
+		family=opts.ip_af, socktype=dst_socktype, force_unique_address=True )
 
 	bind = False
 	if opts.bind:
@@ -155,8 +163,8 @@ def main(args=None):
 			parser.error('--bind argument must be in "host:port" format')
 		else:
 			bind_socktype, bind_port = socket.SOCK_DGRAM, int(port)
-			bind_af, bind_addr = get_socket_info( host,
-				bind_port, socktype=bind_socktype, force_unique_address=True )
+			bind_af, bind_addr = get_socket_info( host, bind_port,
+				family=opts.ip_af, socktype=bind_socktype, force_unique_address=True )
 
 	keys = dict()
 	for k in opts.key:

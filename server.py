@@ -381,6 +381,11 @@ def main(args=None):
 	parser.add_argument('-b', '--bind',
 		metavar='[host:]port', default=bytes(default_port),
 		help='Host/port to bind listening socket to (default: %(default)s).')
+	parser.add_argument('-v', '--ip-af',
+		metavar='{ 4 | 6 }', choices=('4', '6'), default=socket.AF_UNSPEC,
+		help='Resolve hostname(s) (if any) using specified address family version.'
+			' Either "4" or "6", no restriction is appled by default.')
+
 	parser.add_argument('--systemd', action='store_true',
 		help='Receive socket fd from systemd, send systemd startup notification.'
 			' This allows for systemd socket activation and running the'
@@ -411,10 +416,14 @@ def main(args=None):
 
 	if not opts.zone_file: parser.error('Zone file path must be specified')
 
+	if isinstance(opts.ip_af, types.StringTypes):
+		opts.ip_af = {'4': socket.AF_INET, '6': socket.AF_INET6}[opts.ip_af]
+
 	try: host, port = opts.bind.rsplit(':', 1)
 	except ValueError: host, port = default_bind, opts.bind
 	socktype, port = socket.SOCK_DGRAM, int(port)
-	af, addr = get_socket_info(host, port, socktype=socktype, force_unique_address=True)
+	af, addr = get_socket_info( host, port,
+		family=opts.ip_af, socktype=socktype, force_unique_address=True )
 
 	if opts.systemd:
 		from systemd import daemon

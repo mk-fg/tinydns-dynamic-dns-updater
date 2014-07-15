@@ -148,8 +148,5 @@ TODO
 
  * Add "send several packets" option to the client.
 
- * Add server/client option to control address family when resolving hostnames
-   instead of simply throwing error on any ambiguity.
-
  * Add server/client option to "pick any addr" when resolving hostnames instead
    of throwing error on any ambiguity.
