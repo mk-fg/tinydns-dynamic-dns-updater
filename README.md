@@ -92,6 +92,10 @@ S: DEBUG:root:No address changes in valid update packet: key_id=QlH0RDCxXrI2OvL2
 Operation details
 --------------------
 
+ * Payload of sent UDP packets is fixed 100 bytes in size.
+
+   28B key_id (pubkey hash) || 8B timestamp (double) || 64B Ed25519 signature.
+
  * Client doesn't get any confirmation and is expected to just send as much
    redundant data (and as often), as required by tolerance for stale data and
    network reliability.
