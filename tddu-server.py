@@ -447,6 +447,8 @@ def main(args=None):
 		from systemd import daemon
 		sock, = systemd.daemon.listen_fds()
 		sock = socket.fromfd(af, socktype)
+		daemon.notify('READY=1')
+		daemon.notify('STATUS=Listening for update packets')
 	else:
 		log.debug('Binding to: %r (port: %s, af: %s, socktype: %s)', addr, port, af, socktype)
 		sock = socket.socket(af, socktype)
