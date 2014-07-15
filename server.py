@@ -102,6 +102,34 @@ def with_src_lock(shared=False):
 		return _wrapper
 	return _decorator
 
+def parse_uid_spec(uid_spec):
+	import pwd, grp
+	def parse_id(spec, name_func):
+		spec = bytes(spec)
+		if spec.isdigit(): return int(spec)
+		return name_func(spec)
+	uid_spec = uid_spec.rstrip(':')
+	if ':' not in uid_spec:
+		uid = parse_id( uid_spec,
+			lambda spec: pwd.getpwnam(spec).pw_uid )
+		gid = pwd.getpwuid(uid).pw_gid
+	else:
+		uid, gid = uid_spec.split(':', 1)
+		uid = parse_id( uid,
+			lambda spec: pwd.getpwnam(spec).pw_uid )
+		gid = parse_id( gid,
+			lambda spec: grp.getgrnam(spec).gr_gid )
+	return uid, gid
+
+def drop_privileges(uid_spec=None, uid=None, gid=None):
+	if uid_spec:
+		assert not (uid or gid), [uid_spec, uid, gid]
+		uid, gid = parse_uid_spec(uid_spec)
+	assert uid is not None and gid is not None, [uid_spec, uid, gid]
+	os.setresgid(gid, gid, gid)
+	os.setresuid(uid, uid, uid)
+	log.debug('Switched uid/gid to %s:%s', uid, gid)
+
 
 def key_encode(key):
 	return key.encode(URLSafeBase64Encoder)
@@ -334,6 +362,7 @@ def zone_update_loop(src_path, sock, force_updates=False):
 def main(args=None):
 	import argparse
 	parser = argparse.ArgumentParser(
+		usage='%(prog)s [options]', # argparse fails to build that for $REASONS
 		description='Tool to generate and keep tinydns'
 			' zone file with dynamic dns entries for remote hosts.')
 
@@ -348,6 +377,15 @@ def main(args=None):
 	parser.add_argument('-b', '--bind',
 		metavar='[host:]port', default=bytes(default_port),
 		help='Host/port to bind listening socket to (default: %(default)s).')
+	parser.add_argument('--systemd', action='store_true',
+		help='Receive socket fd from systemd, send systemd startup notification.'
+			' This allows for systemd socket activation and running the'
+				' app from unprivileged uid right from systemd service file.'
+			' Requires systemd python bindings.')
+	parser.add_argument('-u', '--uid', metavar='uid[:gid]',
+		help='User (name) or uid (and optional group/gid) to run as after opening socket.'
+			' WARNING: not a proper daemonization - does not do setsid, chdir,'
+				' closes fds, sets optional gids, etc - just setresuid/setresgid. Use systemd for that.')
 
 	parser.add_argument('--update-timestamps', action='store_true',
 		help='Usually, when no addresses are changed, zone file does not get updated.'
@@ -366,11 +404,15 @@ def main(args=None):
 	socktype, port = socket.SOCK_DGRAM, int(port)
 	af, addr = get_socket_info(host, port, socktype=socktype, force_unique_address=True)
 
-	# XXX: receive socket from systemd
-	log.debug('Binding to: %r (port: %s, af: %s, socktype: %s)', addr, port, af, socktype)
-	sock = socket.socket(af, socktype)
-	sock.bind((addr, port))
-	# XXX: drop uid/gid here
+	if opts.systemd:
+		from systemd import daemon
+		sock, = systemd.daemon.listen_fds()
+		sock = socket.fromfd(af, socktype)
+	else:
+		log.debug('Binding to: %r (port: %s, af: %s, socktype: %s)', addr, port, af, socktype)
+		sock = socket.socket(af, socktype)
+		sock.bind((addr, port))
+	if opts.uid: drop_privileges(opts.uid)
 
 	with open(opts.zone_file, 'rb'): pass # access check
 	zone_update_loop( opts.zone_file, sock,

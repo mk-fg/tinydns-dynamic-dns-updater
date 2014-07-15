@@ -87,6 +87,10 @@ S: DEBUG:root:No address changes in valid update packet: key_id=QlH0RDCxXrI2OvL2
 
  * [netaddr](https://github.com/drkjam/netaddr/)
 
+ * (optional)
+   [python-systemd](http://www.freedesktop.org/software/systemd/python-systemd/)
+   - to use systemd socket activation for server (--systemd option).
+
 
 
 Operation details
@@ -141,11 +145,6 @@ TODO
 --------------------
 
  * Run cdb rebuild or any optional hook script after updates on server.
-
- * Add "systemd.daemon" integration, to easily work with privileged ports via
-   socket passed from there, suppport socket activation and timeout.
-
- * Add uid/gid drop (after socket bind) option on the server.
 
  * Add "send several packets" option to the client.
 
