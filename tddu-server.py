@@ -31,7 +31,7 @@ update_mtime_tries = 5
 class AddressError(Exception): pass
 
 def get_socket_info( host, port=0, family=0,
-		socktype=0, protocol=0, force_unique_address=False ):
+		socktype=0, protocol=0, force_unique_address=None ):
 	log_params = [port, family, socktype, protocol]
 	log.debug('Resolving addr: %r (params: %s)', host, log_params)
 	try:
@@ -55,8 +55,9 @@ def get_socket_info( host, port=0, family=0,
 					' refusing to pick one at random - specify socket family instead. Addresses: %s',
 				', '.join(ai_af_names), ', '.join(ai_addr) )
 			raise AddressError
-		log.warn( 'Specified host matches more than'
-			' one address family (%s), using it as IPv4 (AF_INET)', ai_af_names )
+		(log.warn if force_unique_address is None else log.info)\
+			( 'Specified host matches more than one address'
+				' family (%s), using it as IPv4 (AF_INET)', ai_af_names )
 		af = socket.AF_INET
 	else: af = list(ai_af)[0]
 
@@ -422,8 +423,7 @@ def main(args=None):
 	try: host, port = opts.bind.rsplit(':', 1)
 	except ValueError: host, port = default_bind, opts.bind
 	socktype, port = socket.SOCK_DGRAM, int(port)
-	af, addr = get_socket_info( host, port,
-		family=opts.ip_af, socktype=socktype, force_unique_address=True )
+	af, addr = get_socket_info(host, port, family=opts.ip_af, socktype=socktype)
 
 	if opts.systemd:
 		from systemd import daemon

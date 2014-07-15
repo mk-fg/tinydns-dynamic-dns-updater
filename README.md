@@ -147,6 +147,3 @@ TODO
  * Run cdb rebuild or any optional hook script after updates on server.
 
  * Add "send several packets" option to the client.
-
- * Add server/client option to "pick any addr" when resolving hostnames instead
-   of throwing error on any ambiguity.

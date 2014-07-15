@@ -24,7 +24,7 @@ default_port = 5533
 class AddressError(Exception): pass
 
 def get_socket_info( host, port=0, family=0,
-		socktype=0, protocol=0, force_unique_address=False ):
+		socktype=0, protocol=0, force_unique_address=None ):
 	log_params = [port, family, socktype, protocol]
 	log.debug('Resolving addr: %r (params: %s)', host, log_params)
 	try:
@@ -48,8 +48,9 @@ def get_socket_info( host, port=0, family=0,
 					' refusing to pick one at random - specify socket family instead. Addresses: %s',
 				', '.join(ai_af_names), ', '.join(ai_addr) )
 			raise AddressError
-		log.warn( 'Specified host matches more than'
-			' one address family (%s), using it as IPv4 (AF_INET)', ai_af_names )
+		(log.warn if force_unique_address is None else log.info)\
+			( 'Specified host matches more than one address'
+				' family (%s), using it as IPv4 (AF_INET)', ai_af_names )
 		af = socket.AF_INET
 	else: af = list(ai_af)[0]
 
@@ -128,6 +129,9 @@ def main(args=None):
 		metavar='{ 4 | 6 }', choices=('4', '6'), default=socket.AF_UNSPEC,
 		help='Resolve hostname(s) (if any) using specified address family version.'
 			' Either "4" or "6", no restriction is appled by default.')
+	parser.add_argument('-r', '--random-addr', action='store_true',
+		help='Pick random address from those returned by getaddrinfo() for destination.'
+			' Default is to throw error if several addresses are returned.')
 
 	parser.add_argument('-d', '--debug', action='store_true', help='Verbose operation mode.')
 	opts = parser.parse_args(sys.argv[1:] if args is None else args)
@@ -152,8 +156,10 @@ def main(args=None):
 	try: host, port = opts.destination.rsplit(':', 1)
 	except ValueError: host, port = opts.destination, default_port
 	dst_socktype, dst_port = socket.SOCK_DGRAM, int(port)
-	dst_af, dst_addr = get_socket_info( host, dst_port,
-		family=opts.ip_af, socktype=dst_socktype, force_unique_address=True )
+	dst_af, dst_addr = get_socket_info(
+		host, dst_port,
+		family=opts.ip_af, socktype=dst_socktype,
+		force_unique_address=not opts.random_addr )
 
 	bind = False
 	if opts.bind:
@@ -163,8 +169,9 @@ def main(args=None):
 			parser.error('--bind argument must be in "host:port" format')
 		else:
 			bind_socktype, bind_port = socket.SOCK_DGRAM, int(port)
-			bind_af, bind_addr = get_socket_info( host, bind_port,
-				family=opts.ip_af, socktype=bind_socktype, force_unique_address=True )
+			bind_af, bind_addr = get_socket_info(
+				host, bind_port,
+				family=opts.ip_af, socktype=bind_socktype )
 
 	keys = dict()
 	for k in opts.key:
