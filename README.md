@@ -5,8 +5,8 @@ Tool to generate and keep [tinydns](http://tinydns.org/)
 (resolver daemon from [djbdns](http://cr.yp.to/djbdns.html))
 zone file with dynamic dns entries for remote hosts.
 
-It consists of "client" part sending (several) UDP packets with public key id
-and signed current timestamp to "server", which matches key to a name that
+It consists of "client" part that sends (several) UDP packets with signing key
+id and signed current timestamp to "server", which matches key to a name that
 should be updated and makes sure timestamp is newer than that of the last update
 there, and if so, uses source address of the packet to update djbdns database
 name-ip binding.
@@ -62,9 +62,9 @@ C: DEBUG:root:Sending 1 update msg(s) to: '::1' (port: 5533, af: 10, socktype: 2
 S: DEBUG:root:Updating zone entry for name 'some.random.name' (type: 6): 2a00:1450:4010:c08::66 -> ::1
 S: DEBUG:root:Updating zone block '0 jLxAZY-vnJfubHr8srYy3mIN2_mCi_OExUwHOluOlLY=' ts: 0.00 -> 1405421249.89
 
-[...it's a bad idea to pass keys on cli like that, so store it to "client.key" file...]
+[...it's a BAD idea to pass keys on cli like that, so store it to "/tmp/client.key" file...]
 
-C% ./client.py --debug 127.0.0.1:5533 client.key
+C% ./client.py --debug 127.0.0.1:5533 /tmp/client.key
 
 C: DEBUG:root:Resolving addr: '127.0.0.1' (params: [5533, 0, 2, 0])
 C: DEBUG:root:Sending 1 update msg(s) to: '127.0.0.1' (port: 5533, af: 2, socktype: 2)
@@ -92,8 +92,17 @@ Operation details
    redundant data (and as often), as required by tolerance for stale data and
    network reliability.
 
- * It makes sense (and is safe) to send any number of UDP update packets,
-   server-side old ones and non-changes are ignored.
+ * It makes sense (and is safe) to send any number of UDP update packets, old
+   ones and non-changes are ignored server-side, as well as any otherwise
+   invalid packets in general.
+
+ * Since address is determined from UDP packet source, it matter whether it gets
+   sent over IPv4 or IPv6, and whether there's any SNAT translation in-between.
+
+ * If hostname is passed anywhere instead of address, it is resolved by
+   getaddrinfo(2), and if there are several different results, error is raised
+   to prevent ambiguity, esp. wrt IPv4/IPv6 resolution (see also
+   `/etc/gai.conf`).
 
  * Signatures are used as a simple means of client id and
    authentication.
