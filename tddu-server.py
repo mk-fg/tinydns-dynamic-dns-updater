@@ -36,6 +36,7 @@ def get_socket_info( host,
 		force_unique_address=None, pick_random=False ):
 	log_params = [port, family, socktype, protocol]
 	log.debug('Resolving addr: %r (params: %s)', host, log_params)
+	host = re.sub(r'^\[|\]$', '', host)
 	try:
 		addrinfo = socket.getaddrinfo(host, port, family, socktype, protocol)
 		if not addrinfo: raise socket.gaierror('No addrinfo for host: {}'.format(host))
@@ -341,7 +342,7 @@ def zone_update_loop( src_path, sock,
 			if not blocks: raise InvalidPacket('unrecognized key id: %s', key_id)
 			blocks = filter(lambda b: b['ts'] < ts, blocks)
 			if not blocks:
-				raise InvalidPacket('repeated/old ts (current: %s): %s', entry['ts'], ts)
+				raise InvalidPacket('repeated/old ts: %s', ts)
 			key, msg_data = blocks[0]['keys'][key_id], pkt[:msg_data_len]
 			if not key_check_sig(key, msg_data, msg_sig):
 				raise InvalidPacket( 'signature check failed'

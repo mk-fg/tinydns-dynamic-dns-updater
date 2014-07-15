@@ -28,6 +28,7 @@ def get_socket_info( host,
 		force_unique_address=None, pick_random=False ):
 	log_params = [port, family, socktype, protocol]
 	log.debug('Resolving addr: %r (params: %s)', host, log_params)
+	host = re.sub(r'^\[|\]$', '', host)
 	try:
 		addrinfo = socket.getaddrinfo(host, port, family, socktype, protocol)
 		if not addrinfo: raise socket.gaierror('No addrinfo for host: {}'.format(host))
@@ -97,35 +98,39 @@ def build_msg(key, ts=None, key_id=None):
 	assert len(msg_sig) == sig_len, [msg_sig, sig_len]
 	return struct.pack(msg_fmt, msg_data, msg_sig)
 
-def dispatch_packets( dst, bind, keys,
+def dispatch_packets( dsts, binds, keys,
 		ts=None, family=socket.AF_UNSPEC, random_addr=False ):
-	try: host, port = dst.rsplit(':', 1)
-	except ValueError: host, port = dst, default_port
-	dst_socktype, dst_port = socket.SOCK_DGRAM, int(port)
-	dst_af, dst_addr = get_socket_info( host, dst_port,
-		family=family, socktype=dst_socktype, pick_random=random_addr )
+	msgs = list(build_msg(key, ts, key_id) for key_id, key in keys.viewitems())
 
-	if bind:
-		try: host, port = bind.rsplit(':', 1)
-		except ValueError:
-			parser.error('--bind argument must be in "host:port" format')
-		else:
+	for dst, bind in it.product(dsts, binds):
+		dst_af = family
+
+		if bind:
+			match = re.search('^(.*):(\d+)$', bind)
+			host, port = match.groups() if match else (bind, 0)
 			bind_socktype, bind_port = socket.SOCK_DGRAM, int(port)
 			bind_af, bind_addr = get_socket_info(
 				host, bind_port, family=family, socktype=bind_socktype )
+			if dst_af == socket.AF_UNSPEC: dst_af = bind_af
 
-	msgs = list(build_msg(key, ts, key_id) for key_id, key in keys.viewitems())
+		try: host, port = dst.rsplit(':', 1)
+		except ValueError: host, port = dst, default_port
+		dst_socktype, dst_port = socket.SOCK_DGRAM, int(port)
+		dst_af, dst_addr = get_socket_info( host, dst_port,
+			family=dst_af, socktype=dst_socktype, pick_random=random_addr )
 
-	log.debug( 'Sending %s update msg(s) to: %r (port: %s,'
-		' af: %s, socktype: %s)', len(msgs), dst_addr, dst_port, dst_af, dst_socktype )
-	sock = socket.socket(dst_af, dst_socktype)
-	if bind:
-		assert bind_af == dst_af and bind_socktype == dst_socktype,\
-			[bind_af, dst_af, bind_socktype, dst_socktype]
-		log.debug('Binding sending socket to: %r (port: %s)', bind_addr, bind_port)
-		sock.bind((bind_addr, bind_port))
-	for msg in msgs:
-		sock.sendto(msg, (dst_addr, dst_port))
+		log.debug(
+			'Sending %s update msg(s) to: %r (port: %s, af: %s, socktype: %s, bind: %s)',
+			len(msgs), dst_addr, dst_port, dst_af, dst_socktype, bind )
+
+		sock = socket.socket(dst_af, dst_socktype)
+		if bind:
+			assert bind_af == dst_af and bind_socktype == dst_socktype,\
+				[bind_af, dst_af, bind_socktype, dst_socktype]
+			log.debug('Binding sending socket to: %r (port: %s)', bind_addr, bind_port)
+			sock.bind((bind_addr, bind_port))
+
+		for msg in msgs: sock.sendto(msg, (dst_addr, dst_port))
 
 
 
@@ -136,9 +141,12 @@ def main(args=None):
 		description='Tool to update tinydns zone file entries for host remotely.')
 
 	parser.add_argument('destination', nargs='?',
-		help='Address/port to of the remote listening udp socket'
-			' to send update information to, in "host[:port]" format'
-			' (where port defaults to {}, if omitted).'.format(default_port))
+		help=(
+			'Address/port to of the remote listening udp socket'
+				' to send update information to, in "host[:port]" format'
+				' (where port defaults to {}, if omitted).'
+			' Multiple destinations can be specified, separated by slash ("/").'
+		).format(default_port))
 
 	parser.add_argument('key', nargs='*',
 		help='Ed25519 signing key or absoulte path to a file'
@@ -153,10 +161,13 @@ def main(args=None):
 		help='Generate a new random signing/verify'
 			' Ed25519 keypair, print both keys to stdout and exit.')
 
-	parser.add_argument('-b', '--bind', metavar='[host:]port',
+	parser.add_argument('-b', '--bind', metavar='host[:port]',
 		help='Host/port to bind sending socket to.'
 			' Can be useful for firewall rules and to explicitly bind to external interface.'
-			' Example: 1.2.3.4:8793')
+			' Enclose IPv6 into square brackets to avoid'
+				' last word of it from being processed as a port number.'
+			' Multiple sources can be specified, separated by slash ("/").'
+			' Examples: 1.2.3.4:8793, [2a02:6b8::3]/213.180.204.3')
 	parser.add_argument('-v', '--ip-af',
 		metavar='{ 4 | 6 }', choices=('4', '6'), default=socket.AF_UNSPEC,
 		help='Resolve hostname(s) (if any) using specified address family version.'
@@ -191,8 +202,10 @@ def main(args=None):
 		print('Verify key (to use on server):\n  ', key_encode(signing_key.verify_key), '\n')
 		return
 
-	if not opts.destination: parser.error('Destination endpoint must be specified')
 	if not opts.key: parser.error('At least one key must be specified')
+	if not opts.destination: parser.error('Destination endpoint must be specified')
+	else: opts.destination = opts.destination.split('/')
+	opts.bind = [None] if not opts.bind else opts.bind.split('/')
 
 	if isinstance(opts.ip_af, types.StringTypes):
 		opts.ip_af = {'4': socket.AF_INET, '6': socket.AF_INET6}[opts.ip_af]
