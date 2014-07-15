@@ -366,13 +366,17 @@ def main(args=None):
 		description='Tool to generate and keep tinydns'
 			' zone file with dynamic dns entries for remote hosts.')
 
-	parser.add_argument('zone_file',
+	parser.add_argument('zone_file', nargs='?',
 		help='Path to tinydns zone file with client Ed25519 (base64-encoded)'
 				' pubkeys and timestamps in comments before entries.'
 			' Basically any line with IPs that has comment in the form of'
 				' "dynamic: <ts> <pubkey> <pubkey2> ..." immediately before it (no empty lines'
 				' or other comments separating these) can be updated by packet with'
 				' proper ts/signature.')
+
+	parser.add_argument('-g', '--genkey', action='store_true',
+		help='Generate a new random signing/verify'
+			' Ed25519 keypair, print both keys to stdout and exit.')
 
 	parser.add_argument('-b', '--bind',
 		metavar='[host:]port', default=bytes(default_port),
@@ -398,6 +402,14 @@ def main(args=None):
 	import logging
 	logging.basicConfig(level=logging.DEBUG if opts.debug else logging.WARNING)
 	log = logging.getLogger()
+
+	if opts.genkey:
+		signing_key = SigningKey.generate()
+		print('Signing key (for client only):\n  ', key_encode(signing_key), '\n')
+		print('Verify key (for this script):\n  ', key_encode(signing_key.verify_key), '\n')
+		return
+
+	if not opts.zone_file: parser.error('Zone file path must be specified')
 
 	try: host, port = opts.bind.rsplit(':', 1)
 	except ValueError: host, port = default_bind, opts.bind

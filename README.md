@@ -148,8 +148,6 @@ TODO
 
  * Add "send several packets" option to the client.
 
- * Add "--genkey" option to server as well.
-
  * Add server/client option to control address family when resolving hostnames
    instead of simply throwing error on any ambiguity.
 
