@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 import itertools as it, operator as op, functools as ft
-import os, sys, types, socket, struct, time
+import os, sys, types, re, socket, struct, time, random
 
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
@@ -23,8 +23,9 @@ default_port = 5533
 
 class AddressError(Exception): pass
 
-def get_socket_info( host, port=0, family=0,
-		socktype=0, protocol=0, force_unique_address=None ):
+def get_socket_info( host,
+		port=0, family=0, socktype=0, protocol=0,
+		force_unique_address=None, pick_random=False ):
 	log_params = [port, family, socktype, protocol]
 	log.debug('Resolving addr: %r (params: %s)', host, log_params)
 	try:
@@ -38,6 +39,8 @@ def get_socket_info( host, port=0, family=0,
 	for family, _, _, hostname, addr in addrinfo:
 		ai_af.add(family)
 		ai_addr.append((addr[0], family))
+
+	if pick_random: return random.choice(ai_addr)
 
 	if len(ai_af) > 1:
 		af_names = dict((v, k) for k,v in vars(socket).viewitems() if k.startswith('AF_'))
@@ -99,10 +102,8 @@ def dispatch_packets( dst, bind, keys,
 	try: host, port = dst.rsplit(':', 1)
 	except ValueError: host, port = dst, default_port
 	dst_socktype, dst_port = socket.SOCK_DGRAM, int(port)
-	dst_af, dst_addr = get_socket_info(
-		host, dst_port,
-		family=family, socktype=dst_socktype,
-		force_unique_address=not random_addr )
+	dst_af, dst_addr = get_socket_info( host, dst_port,
+		family=family, socktype=dst_socktype, pick_random=random_addr )
 
 	if bind:
 		try: host, port = bind.rsplit(':', 1)
@@ -111,8 +112,7 @@ def dispatch_packets( dst, bind, keys,
 		else:
 			bind_socktype, bind_port = socket.SOCK_DGRAM, int(port)
 			bind_af, bind_addr = get_socket_info(
-				host, bind_port,
-				family=family, socktype=bind_socktype )
+				host, bind_port, family=family, socktype=bind_socktype )
 
 	msgs = list(build_msg(key, ts, key_id) for key_id, key in keys.viewitems())
 

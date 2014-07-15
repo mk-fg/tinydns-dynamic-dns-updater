@@ -6,7 +6,7 @@ import itertools as it, operator as op, functools as ft
 from contextlib import contextmanager, closing
 from collections import namedtuple, defaultdict
 from tempfile import NamedTemporaryFile
-import os, sys, types, re, socket, struct, fcntl
+import os, sys, types, re, socket, struct, fcntl, random
 
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
@@ -30,8 +30,9 @@ update_mtime_tries = 5
 
 class AddressError(Exception): pass
 
-def get_socket_info( host, port=0, family=0,
-		socktype=0, protocol=0, force_unique_address=None ):
+def get_socket_info( host,
+		port=0, family=0, socktype=0, protocol=0,
+		force_unique_address=None, pick_random=False ):
 	log_params = [port, family, socktype, protocol]
 	log.debug('Resolving addr: %r (params: %s)', host, log_params)
 	try:
@@ -45,6 +46,8 @@ def get_socket_info( host, port=0, family=0,
 	for family, _, _, hostname, addr in addrinfo:
 		ai_af.add(family)
 		ai_addr.append((addr[0], family))
+
+	if pick_random: return random.choice(ai_addr)
 
 	if len(ai_af) > 1:
 		af_names = dict((v, k) for k,v in vars(socket).viewitems() if k.startswith('AF_'))
