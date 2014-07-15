@@ -5,14 +5,19 @@ from subprocess import STDOUT
 from plumbum import local
 import os, sys, re, time
 
-local['cp']('zone_file.example', 'zone_file.example.tmp')
+tmp = 'zone_file.example.tmp'
+local['cp']('zone_file.example', tmp)
 
 server, client = local['./tddu-server.py'], local['./tddu-client.py']
 
+# To add extra loopback IPs use:
+#  ip addr add 127.0.0.2 dev lo
+#  ip addr add ::2 dev lo
 ip_changes = [
 	'127.0.0.1', '::1',
 	'127.0.0.2', '127.0.0.1', '127.0.0.1',
-	'::2', '::2'
+	'::2', '::2',
+	'127.0.0.2'
 ]
 
 with open('zone_file.example') as src:
@@ -46,5 +51,15 @@ finally:
 	server.wait()
 	print_output(server.stdout.read(), 'S')
 	if server_n is not None: sys.exit(1)
+
+with open(tmp, 'rb') as src: src = src.read()
+for line in [
+		'+some.static.name:213.180.193.3',
+		'+some.random.name:127.0.0.2',
+		'+extra.random.name:127.0.0.2',
+		'6some.random.name:00000000000000000000000000000002',
+		'+another.static.name:93.158.134.3',
+		'6another.static.name:2a0206b8000000000000000000000003' ]:
+	assert re.search(r'(^|\s){}\n'.format(re.escape(line)), src), line
 
 print('Done')
