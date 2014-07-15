@@ -137,7 +137,7 @@ def dispatch_packets( dsts, binds, keys,
 def main(args=None):
 	import argparse
 	parser = argparse.ArgumentParser(
-		usage='%(prog)s [options]', # argparse fails to build that for $REASONS
+		usage='%(prog)s [options] [ [--] arguments ]', # argparse fails to build that for $REASONS
 		description='Tool to update tinydns zone file entries for host remotely.')
 
 	parser.add_argument('destination', nargs='?',

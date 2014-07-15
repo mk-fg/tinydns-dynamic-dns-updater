@@ -377,7 +377,7 @@ def zone_update_loop( src_path, sock,
 def main(args=None):
 	import argparse
 	parser = argparse.ArgumentParser(
-		usage='%(prog)s [options]', # argparse fails to build that for $REASONS
+		usage='%(prog)s [options] [ [--] arguments ]', # argparse fails to build that for $REASONS
 		description='Tool to generate and keep tinydns'
 			' zone file with dynamic dns entries for remote hosts.')
 
