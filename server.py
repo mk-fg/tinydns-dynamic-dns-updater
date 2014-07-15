@@ -25,6 +25,8 @@ msg_len = struct.calcsize(msg_fmt)
 default_bind = '::'
 default_port = 5533
 
+update_mtime_tries = 5
+
 
 class AddressError(Exception): pass
 
@@ -165,6 +167,11 @@ def zone_parse(src):
 
 	return src_ts, entries
 
+def zone_parse_file(src_path):
+	with open(src_path, 'rb') as src:
+		return zone_parse(src)
+
+
 ZUAddr = namedtuple('ZoneUpdateAddr', 'pos obj addr')
 ZUTime = namedtuple('ZoneUpdateTime', 'pos obj ts')
 ZUPatch = namedtuple('ZoneUpdatePatch', 'chunk obj vals')
@@ -236,7 +243,8 @@ def zone_update_file(src, src_ts, updates):
 
 	return src_ts, updates
 
-def zone_update(src_path, src_ts, blocks, key_id, ts, addr):
+def zone_update( src_path, src_ts,
+		blocks, key_id, ts, addr, force_updates=False ):
 	updates, updates_addr, pos_idx = list(), False, list()
 	for block in blocks:
 		for entry in block['names']:
@@ -249,10 +257,11 @@ def zone_update(src_path, src_ts, blocks, key_id, ts, addr):
 		pos_idx.append((pos, obj))
 		updates.append(ZUTime(pos, obj, ts))
 
-	if not updates_addr:
+	if not force_updates and not updates_addr:
 		log.debug( 'No address changes in valid update'
 			' packet: key_id=%s ts=%.2f addr=%s', key_id, ts, addr )
-		return src_ts
+		return
+	elif not updates: return
 
 	with open(src_path, 'a+') as src:
 		src_ts, updates = zone_update_file(src, src_ts, updates)
@@ -272,9 +281,8 @@ def zone_update(src_path, src_ts, blocks, key_id, ts, addr):
 
 	return src_ts
 
-def zone_update_loop(src_path, sock):
-	with open(src_path, 'rb') as src:
-		src_ts, entries = zone_parse(src)
+def zone_update_loop(src_path, sock, force_updates=False):
+	src_ts, entries = zone_parse_file(src_path)
 
 	while True:
 		pkt, ep = sock.recvfrom(65535)
@@ -304,7 +312,23 @@ def zone_update_loop(src_path, sock):
 		addr = netaddr.IPAddress(addr_raw)
 		if addr.is_ipv4_mapped(): addr = addr.ipv4()
 
-		src_ts = zone_update(src_path, src_ts, blocks, key_id, ts, addr)
+		for n in xrange(update_mtime_tries):
+			try:
+				src_ts_new = zone_update(
+					src_path, src_ts, blocks, key_id, ts, addr,
+					force_updates=force_updates )
+			except ZoneMtimeUpdated as err:
+				log.info( 'Reloading zone_file (%r)'
+					' due to mtime change: %.2f -> %.2f', src_path, *err.args )
+				src_ts, entries = zone_parse_file(src_path)
+				blocks = filter(lambda b: b['ts'] < ts, blocks)
+			else:
+				if src_ts_new is not None: src_ts = src_ts_new
+				break
+		else:
+			log.fatal( 'Unable to get exclusive access'
+				' to zone_file (%r) in %s tries', src_path, update_mtime_tries )
+			sys.exit(1)
 
 
 def main(args=None):
@@ -324,6 +348,10 @@ def main(args=None):
 	parser.add_argument('-b', '--bind',
 		metavar='[host:]port', default=bytes(default_port),
 		help='Host/port to bind listening socket to (default: %(default)s).')
+
+	parser.add_argument('--update-timestamps', action='store_true',
+		help='Usually, when no addresses are changed, zone file does not get updated.'
+			' This option forces updates to timestamps in addr-block headers.')
 
 	parser.add_argument('-d', '--debug', action='store_true', help='Verbose operation mode.')
 	opts = parser.parse_args(sys.argv[1:] if args is None else args)
@@ -345,6 +373,7 @@ def main(args=None):
 	# XXX: drop uid/gid here
 
 	with open(opts.zone_file, 'rb'): pass # access check
-	zone_update_loop(opts.zone_file, sock)
+	zone_update_loop( opts.zone_file, sock,
+		force_updates=opts.update_timestamps )
 
 if __name__ == '__main__': sys.exit(main())

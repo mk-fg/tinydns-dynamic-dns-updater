@@ -45,6 +45,6 @@ finally:
 	if server_n is None: server.terminate()
 	server.wait()
 	print_output(server.stdout.read(), 'S')
-	if server_n is not None: exit(1)
+	if server_n is not None: sys.exit(1)
 
 print('Done')

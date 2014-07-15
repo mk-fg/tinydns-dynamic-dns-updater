@@ -151,12 +151,8 @@ TODO
 
  * Add "--genkey" option to server as well.
 
- * Add server option to bump timestamps even if no addrs are changed.
-
  * Add server/client option to control address family when resolving hostnames
    instead of simply throwing error on any ambiguity.
 
  * Add server/client option to "pick any addr" when resolving hostnames instead
    of throwing error on any ambiguity.
-
- * Reparse zone-file on changes instead of exiting with error.
