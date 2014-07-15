@@ -26,7 +26,7 @@ Usage
 Example ("S" is for server terminal, "C" - client):
 
 ```
-S% ./client.py -g
+S% ./tddu-client.py -g
 
 S: Signing key (for this script only):
 S:    1k_Nf7FSEWHC2I65DfI2SAhtk1q0Ps9RcLy9PinyDLs=
@@ -35,7 +35,7 @@ S: Verify key (to use on server):
 S:    jLxAZY-vnJfubHr8srYy3mIN2_mCi_OExUwHOluOlLY=
 S:
 
-[...these keys are used in zone_file.example and with client.py...]
+[...these keys are used in zone_file.example and with tddu-client.py...]
 
 S% cat zone_file.example
 
@@ -49,12 +49,12 @@ S:
 S: +another.static.name:93.158.134.3
 S: 6another.static.name:2a0206b8000000000000000000000003
 
-S% cp zone_file.example zone_file.example.tmp && ./server.py --debug zone_file.example.tmp
+S% cp zone_file.example zone_file.example.tmp && ./tddu-server.py --debug zone_file.example.tmp
 
 S: DEBUG:root:Resolving addr: '::' (params: [5533, 0, 2, 0])
 S: DEBUG:root:Binding to: '::' (port: 5533, af: 10, socktype: 2)
 
-C% ./client.py --debug ::1:5533 1k_Nf7FSEWHC2I65DfI2SAhtk1q0Ps9RcLy9PinyDLs=
+C% ./tddu-client.py --debug ::1:5533 1k_Nf7FSEWHC2I65DfI2SAhtk1q0Ps9RcLy9PinyDLs=
 
 C: DEBUG:root:Resolving addr: '::1' (params: [5533, 0, 2, 0])
 C: DEBUG:root:Sending 1 update msg(s) to: '::1' (port: 5533, af: 10, socktype: 2)
@@ -64,7 +64,7 @@ S: DEBUG:root:Updating zone block '0 jLxAZY-vnJfubHr8srYy3mIN2_mCi_OExUwHOluOlLY
 
 [...it's a BAD idea to pass keys on cli like that, so store it to "./client.key" file...]
 
-C% ./client.py --debug 127.0.0.1:5533 ./client.key
+C% ./tddu-client.py --debug 127.0.0.1:5533 ./client.key
 
 C: DEBUG:root:Resolving addr: '127.0.0.1' (params: [5533, 0, 2, 0])
 C: DEBUG:root:Sending 1 update msg(s) to: '127.0.0.1' (port: 5533, af: 2, socktype: 2)
@@ -73,7 +73,7 @@ S: DEBUG:root:Updating zone entry for name 'extra.random.name' (type: +): 37.98.
 S: DEBUG:root:Updating zone entry for name 'some.random.name' (type: +): 37.98.242.143 -> 127.0.0.1
 S: DEBUG:root:Updating zone block '1405421249.89 jLxAZY-vnJfubHr8srYy3mIN2_mCi_OExUwHOluOlLY=' ts: 1405421249.89 -> 1405421540.03
 
-C% ./client.py 127.0.0.1:5533 ./client.key
+C% ./tddu-client.py 127.0.0.1:5533 ./client.key
 
 S: DEBUG:root:No address changes in valid update packet: key_id=QlH0RDCxXrI2OvL2OUA4DBeDY79X ts=1405423510.34 addr=127.0.0.1
 ```
