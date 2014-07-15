@@ -80,7 +80,7 @@ def safe_replacement(path):
 	with NamedTemporaryFile(**kws) as tmp:
 		try:
 			yield tmp
-			tmp.flush()
+			if not tmp.closed: tmp.flush()
 			os.rename(tmp.name, path)
 		finally:
 			try: os.unlink(tmp.name)
@@ -120,6 +120,9 @@ def key_check_sig(key, msg_data, msg_sig):
 	else: return True
 
 
+class ZBlock(dict): pass
+class ZEntry(dict): pass
+
 def zone_addr_format(addr):
 	if addr.version == 4: return addr.format()
 	else: return ''.join('{:04x}'.format(n) for n in addr.words)
@@ -130,7 +133,7 @@ def zone_parse(src):
 	src_ts = os.fstat(src.fileno()).st_mtime
 
 	src.seek(0)
-	for line in iter(src.readline, ''):
+	for n, line in enumerate(iter(src.readline, ''), 1):
 		bol, bol_next = bol_next, src.tell()
 
 		match = re.search(r'^\s*#\s*dynamic:\s*((\d+(\.\d+)?)\s.*)$', line)
@@ -138,9 +141,9 @@ def zone_parse(src):
 			data, ts_span = match.group(1).split(), tuple(bol+v for v in match.span(2))
 			keys = map(key_decode, data[1:])
 			key_ids = map(key_get_id, keys)
-			block = dict(
+			block = ZBlock(
 				ts=float(data[0]), ts_span=ts_span,
-				line=' '.join(data), keys=dict(zip(key_ids, keys)), names=list() )
+				lineno=n, keys=dict(zip(key_ids, keys)), names=list() )
 			for key_id in key_ids: entries[key_id].append(block)
 			continue
 		elif re.search(r'^\s*#', line): line = ''
@@ -156,58 +159,82 @@ def zone_parse(src):
 			if t == '6': ver, addr = 6, ':'.join(''.join(v) for v in it_adjacent(addr, 4))
 			elif t == '+': ver = 4
 			else: raise NotImplementedError()
-			block['names'].append(dict(
+			block['names'].append(ZEntry(
 				name=name, t=t, bol=bol,
 				addr_raw=addr_raw, addr=netaddr.IPAddress(addr) ))
 
 	return src_ts, entries
 
-ZoneUpdateAddr = namedtuple('ZoneUpdateAddr', 'pos entry addr')
-ZoneUpdateTime = namedtuple('ZoneUpdateTime', 'pos block ts')
+ZUAddr = namedtuple('ZoneUpdateAddr', 'pos obj addr')
+ZUTime = namedtuple('ZoneUpdateTime', 'pos obj ts')
+ZUPatch = namedtuple('ZoneUpdatePatch', 'chunk obj vals')
 
 class InvalidPacket(Exception): pass
+class ZoneMtimeUpdated(Exception): pass
 
 @with_src_lock(shared=False)
 def zone_update(src, src_ts, updates):
+	def src_stat_check():
+		src_ts_now = os.fstat(src.fileno()).st_mtime
+		if abs(src_ts_now - src_ts) > 1:
+			raise ZoneMtimeUpdated([src_ts_now, src_ts])
+	src_stat_check()
 	src.seek(0)
 	res, src_buff = list(), src.read()
 
 	pos, pos_used = None, set()
 	updates.sort(reverse=True) # last update pos first
 	for u in updates:
-		if isinstance(u, ZoneUpdateAddr):
+		if isinstance(u, ZUAddr):
 			log.debug( 'Updating zone entry for name %r (type: %s):'
-				' %s -> %s', u.entry['name'], u.entry['t'], u.entry['addr'], u.addr )
-			a = u.entry['bol']
+				' %s -> %s', u.obj['name'], u.obj['t'], u.obj['addr'], u.addr )
+			a = u.obj['bol']
 			b = src_buff.find('\n', a)
 			res.append(src_buff[b:pos])
 			line_src = src_buff[a:b]
-			regexp = r'(?<=:){}((?=[:\s])|$)'.format(re.escape(u.entry['addr_raw']))
+			regexp = r'(?<=:){}((?=[:\s])|$)'.format(re.escape(u.obj['addr_raw']))
 			addr_dst = zone_addr_format(u.addr)
-			line_dst = re.sub(regexp, addr_dst, src_buff[a:b] )
+			line_dst = re.sub(regexp, addr_dst, src_buff[a:b])
 			assert line_src != line_dst, [line_src, regexp, addr_dst]
-			res.append(line_dst)
-		elif isinstance(u, ZoneUpdateTime):
-			log.debug('Updating zone block %r ts: %.2f -> %.2f', u.block['line'], u.block['ts'], u.ts)
-			a, b = u.block['ts_span']
+			res.append(ZUPatch( line_dst,
+				u.obj, dict(addr=u.addr, addr_raw=addr_dst) ))
+		elif isinstance(u, ZUTime):
+			log.debug( 'Updating zone block'
+				' (line: %s) ts: %.2f -> %.2f', u.obj['lineno'], u.obj['ts'], u.ts )
+			a, b = u.obj['ts_span']
 			res.append(src_buff[b:pos])
-			res.append('{:.2f}'.format(u.ts))
+			res.append(ZUPatch('{:.2f}'.format(u.ts), u.obj, dict(ts=u.ts)))
 		else: raise ValueError(u)
 		pos = a
 		assert pos not in pos_used, pos
 		pos_used.add(pos)
 	res.append(src_buff[:pos])
 
-	res = ''.join(reversed(res))
-	src_stat = lambda: os.fstat(src.fileno()).st_mtime
+	pos, src_buff, updates = 0, list(), list()
+	for u in reversed(res):
+		if isinstance(u, ZUPatch):
+			if isinstance(u.obj, ZEntry):
+				u.vals['pos_diff'] = pos - u.obj['bol']
+			elif isinstance(u.obj, ZBlock):
+				u.vals['pos_diff'] = pos + len(u.chunk) - u.obj['ts_span'][1]
+			else: raise ValueError(u.obj)
+			updates.append(u)
+			u = u.chunk
+		src_buff.append(u)
+		pos += len(u)
+	src_buff, res = None, ''.join(src_buff)
+
 	with safe_replacement(src.name) as tmp:
 		tmp.write(res)
-		assert abs(src_stat() - src_ts) < 1
+		tmp.close()
+		src_stat_check()
+		src_ts = os.stat(tmp.name).st_mtime
 		# For things that already have old file opened
 		src.seek(0)
 		src.truncate()
 		src.write(res)
-	return os.stat(src.name).st_mtime
+
+	return src_ts, updates
 
 def zone_update_loop(src_path, sock):
 	with open(src_path, 'rb') as src:
@@ -241,22 +268,36 @@ def zone_update_loop(src_path, sock):
 		addr = netaddr.IPAddress(addr_raw)
 		if addr.is_ipv4_mapped(): addr = addr.ipv4()
 
-		updates, updates_addr = list(), False
+		updates, updates_addr, pos_idx = list(), False, list()
 		for block in blocks:
 			for entry in block['names']:
+				pos, obj = entry['bol'], entry
+				pos_idx.append((pos, obj))
 				if entry['addr'].version == addr.version and entry['addr'] != addr:
-					updates.append(ZoneUpdateAddr(entry['bol'], entry, addr))
+					updates.append(ZUAddr(pos, obj, addr))
 					updates_addr = True # don't bother bumping timestamps only
-			updates.append(ZoneUpdateTime(block['ts_span'][0], block, ts))
+			pos, obj = block['ts_span'][1], block
+			pos_idx.append((pos, obj))
+			updates.append(ZUTime(pos, obj, ts))
 		if not updates_addr:
 			log.debug( 'No address changes in valid update'
 				' packet: key_id=%s ts=%.2f addr=%s', key_id, ts, addr )
 		else:
 			with open(src_path, 'a+') as src:
-				# XXX: update bol and ts_span markers there as well
-				src_ts = zone_update(src, src_ts, updates)
-			with open(src_path, 'rb') as src: # XXX: extra work
-				src_ts, entries = zone_parse(src)
+				src_ts, updates = zone_update(src, src_ts, updates)
+
+			pos_idx.sort()
+			pos_diff, updates = 0, dict((id(u.obj), u) for u in updates)
+			for pos, obj in pos_idx:
+				k = id(obj)
+				if k in updates:
+					updates[k], u = None, updates[k]
+					pos_diff = u.vals.pop('pos_diff')
+					obj.update(u.vals)
+				if isinstance(obj, ZEntry): obj['bol'] += pos_diff
+				elif isinstance(obj, ZBlock):
+					obj['ts_span'] = tuple((v + pos_diff) for v in obj['ts_span'])
+				else: raise ValueError(obj)
 
 
 def main(args=None):

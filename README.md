@@ -140,9 +140,6 @@ Links
 TODO
 --------------------
 
- * Don't re-parse zone file after every update, just re-calculate value
-   positions on update.
-
  * Run cdb rebuild or any optional hook script after updates on server.
 
  * Add "systemd.daemon" integration, to easily work with privileged ports via
