@@ -161,3 +161,5 @@ TODO
 
  * Add server/client option to "pick any addr" when resolving hostnames instead
    of throwing error on any ambiguity.
+
+ * Reparse zone-file on changes instead of exiting with error.
