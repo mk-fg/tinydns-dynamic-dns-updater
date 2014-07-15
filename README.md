@@ -63,7 +63,7 @@ C: DEBUG:root:Resolving addr: '::1' (params: [5533, 0, 2, 0])
 C: DEBUG:root:Sending 1 update msg(s) to: '::1' (port: 5533, af: 10, socktype: 2)
 
 S: DEBUG:root:Updating zone entry for name 'some.random.name' (type: 6): 2a00:1450:4010:c08::66 -> ::1
-S: DEBUG:root:Updating zone block '0 jLxAZY-vnJfubHr8srYy3mIN2_mCi_OExUwHOluOlLY=' ts: 0.00 -> 1405421249.89
+S: DEBUG:root:Updating zone block (line: 4) ts: 0.00 -> 1405421249.89
 
 [...it's a BAD idea to pass keys on cli like that, so store it to "./client.key" file...]
 
@@ -74,7 +74,7 @@ C: DEBUG:root:Sending 1 update msg(s) to: '127.0.0.1' (port: 5533, af: 2, sockty
 
 S: DEBUG:root:Updating zone entry for name 'extra.random.name' (type: +): 37.98.242.143 -> 127.0.0.1
 S: DEBUG:root:Updating zone entry for name 'some.random.name' (type: +): 37.98.242.143 -> 127.0.0.1
-S: DEBUG:root:Updating zone block '1405421249.89 jLxAZY-vnJfubHr8srYy3mIN2_mCi_OExUwHOluOlLY=' ts: 1405421249.89 -> 1405421540.03
+S: DEBUG:root:Updating zone block (line: 4) ts: 1405421249.89 -> 1405421540.03
 
 C% ./tddu-client.py 127.0.0.1:5533 ./client.key
 

@@ -21,7 +21,7 @@ ip_changes = [
 ]
 
 with open('zone_file.example') as src:
-	keys = re.findall('skey: (\S+)', src.read())
+	keys = re.findall('skey(?:[^:\n]+)?: (\S+)', src.read())
 
 def print_output(out, prefix):
 	if not out: return
