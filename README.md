@@ -122,9 +122,9 @@ Operation details
  * Signatures are used as a simple means of client id and
    authentication.
 
-   [Ed25519 public-key signature system](http://ed25519.cr.yp.to/)
-   (as implemented in [PyNaCl](http://pynacl.readthedocs.org/) module)
-   is used.
+   [Ed25519 public-key signature system](http://ed25519.cr.yp.to/) is used
+   (as implemented in [PyNaCl](http://pynacl.readthedocs.org/) /
+   [libsodium](https://github.com/jedisct1/libsodium/)).
 
  * Timestamps are sent to discard obsolete updates and replay attacks.
 
