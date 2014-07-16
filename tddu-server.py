@@ -7,7 +7,7 @@ from contextlib import contextmanager, closing
 from collections import namedtuple, defaultdict
 from tempfile import NamedTemporaryFile
 from subprocess import Popen, PIPE, STDOUT
-import os, sys, types, re, socket, struct, fcntl, random
+import os, sys, types, re, socket, struct, fcntl, stat, random
 
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
@@ -82,11 +82,13 @@ it_ngrams = lambda seq, n: zip(*(it.islice(seq, i, None) for i in range(n)))
 it_adjacent = lambda seq, n: zip(*([iter(seq)] * n))
 
 @contextmanager
-def safe_replacement(path):
+def safe_replacement(path, mode=None):
+	if mode is None: mode = stat.S_IMODE(os.lstat(path).st_mode)
 	kws = dict( delete=False,
 		dir=os.path.dirname(path), prefix=os.path.basename(path)+'.' )
 	with NamedTemporaryFile(**kws) as tmp:
 		try:
+			os.fchmod(tmp.fileno(), mode)
 			yield tmp
 			if not tmp.closed: tmp.flush()
 			os.rename(tmp.name, path)
