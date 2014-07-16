@@ -444,13 +444,16 @@ def main(args=None):
 	socktype, port = socket.SOCK_DGRAM, int(port)
 	af, addr = get_socket_info(host, port, family=opts.ip_af, socktype=socktype)
 
+	sock = None
 	if opts.systemd:
 		from systemd import daemon
-		sock, = systemd.daemon.listen_fds()
-		sock = socket.fromfd(af, socktype)
+		try: sock, = daemon.listen_fds()
+		except ValueError as err:
+			log.info('Unable to get socket from systemd, will create it manually')
+		else: sock = socket.fromfd(af, socktype)
 		daemon.notify('READY=1')
 		daemon.notify('STATUS=Listening for update packets')
-	else:
+	if not sock:
 		log.debug('Binding to: %r (port: %s, af: %s, socktype: %s)', addr, port, af, socktype)
 		sock = socket.socket(af, socktype)
 		sock.bind((addr, port))
