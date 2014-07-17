@@ -131,6 +131,14 @@ Operation details
    They are not considered to be worth hiding, and are cheaper to check on
    server before validating signature when sent in plaintext.
 
+ * It's safe to change zone files when tddu-server.py script is running, as it
+   always checks mtime (and does reload) before building new files, and then
+   again right before replacing (tempfile-rename) old file with a new one.
+
+ * It's also safe to run several server pids from same file, as they do proper
+   locking on reading/writing to it and update old files as well as replace them
+   with new ones, but not sure when doing that might be useful.
+
 
 
 Links

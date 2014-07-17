@@ -370,9 +370,9 @@ def zone_update_loop( src_path, sock,
 					update_cmd=update_cmd, force_updates=force_updates )
 			except ZoneMtimeUpdated as err:
 				log.info( 'Reloading zone_file (%r)'
-					' due to mtime change: %.2f -> %.2f', src_path, *err.args )
+					' due to mtime change: %.2f -> %.2f', src_path, *err.args[0] )
 				src_ts, entries = zone_parse_file(src_path)
-				blocks = filter(lambda b: b['ts'] < ts, blocks)
+				blocks = filter(lambda b: b['ts'] < ts, entries.get(key_id))
 			else:
 				if src_ts_new is not None: src_ts = src_ts_new
 				break
