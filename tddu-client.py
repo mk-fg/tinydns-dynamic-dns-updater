@@ -3,11 +3,11 @@
 from __future__ import print_function
 
 import itertools as it, operator as op, functools as ft
-import os, sys, types, re, socket, struct, time, random
+import os, sys, types, re, base64, struct
+import socket, time, random
 
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
-from nacl.encoding import URLSafeBase64Encoder
 from nacl.hash import sha256
 
 
@@ -70,6 +70,10 @@ def get_socket_info( host,
 
 	return af, addr
 
+
+class URLSafeBase64Encoder(object): # in upstream PyNaCl post-0.2.3
+	encode = staticmethod(lambda d: base64.urlsafe_b64encode(d))
+	decode = staticmethod(lambda d: base64.urlsafe_b64decode(d))
 
 def key_encode(key):
 	return key.encode(URLSafeBase64Encoder)

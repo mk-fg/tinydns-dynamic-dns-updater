@@ -7,11 +7,11 @@ from contextlib import contextmanager, closing
 from collections import namedtuple, defaultdict
 from tempfile import NamedTemporaryFile
 from subprocess import Popen, PIPE, STDOUT
-import os, sys, types, re, socket, struct, fcntl, stat, random
+import os, sys, types, re, base64, struct
+import socket, fcntl, stat, random
 
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
-from nacl.encoding import URLSafeBase64Encoder
 from nacl.hash import sha256
 import netaddr
 
@@ -138,6 +138,10 @@ def drop_privileges(uid_spec=None, uid=None, gid=None):
 	os.setresuid(uid, uid, uid)
 	log.debug('Switched uid/gid to %s:%s', uid, gid)
 
+
+class URLSafeBase64Encoder(object): # in upstream PyNaCl post-0.2.3
+	encode = staticmethod(lambda d: base64.urlsafe_b64encode(d))
+	decode = staticmethod(lambda d: base64.urlsafe_b64decode(d))
 
 def key_encode(key):
 	return key.encode(URLSafeBase64Encoder)
