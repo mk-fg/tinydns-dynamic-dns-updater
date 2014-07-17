@@ -4,11 +4,12 @@ from __future__ import print_function
 
 import itertools as it, operator as op, functools as ft
 import os, sys, types, re, base64, struct
-import socket, time, random
+import socket, time, random, warnings
 
-from nacl.exceptions import BadSignatureError
-from nacl.signing import SigningKey, VerifyKey
-from nacl.hash import sha256
+with warnings.catch_warnings(record=True): # cffi warnings
+	from nacl.exceptions import BadSignatureError
+	from nacl.signing import SigningKey, VerifyKey
+	from nacl.hash import sha256
 
 
 key_id_len = 28

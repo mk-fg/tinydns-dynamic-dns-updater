@@ -8,11 +8,13 @@ from collections import namedtuple, defaultdict
 from tempfile import NamedTemporaryFile
 from subprocess import Popen, PIPE, STDOUT
 import os, sys, types, re, base64, struct
-import socket, fcntl, stat, random
+import socket, fcntl, stat, random, warnings
 
-from nacl.exceptions import BadSignatureError
-from nacl.signing import SigningKey, VerifyKey
-from nacl.hash import sha256
+with warnings.catch_warnings(record=True): # cffi warnings
+	from nacl.exceptions import BadSignatureError
+	from nacl.signing import SigningKey, VerifyKey
+	from nacl.hash import sha256
+
 import netaddr
 
 
