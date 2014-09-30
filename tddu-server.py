@@ -5,10 +5,9 @@ from __future__ import print_function
 import itertools as it, operator as op, functools as ft
 from contextlib import contextmanager, closing
 from collections import namedtuple, defaultdict
-from tempfile import NamedTemporaryFile
 from subprocess import Popen, PIPE, STDOUT
 import os, sys, types, re, base64, struct
-import socket, fcntl, stat, random, warnings
+import socket, fcntl, stat, tempfile, random, warnings
 
 with warnings.catch_warnings(record=True): # cffi warnings
 	from nacl.exceptions import BadSignatureError
@@ -85,12 +84,14 @@ it_adjacent = lambda seq, n: zip(*([iter(seq)] * n))
 
 @contextmanager
 def safe_replacement(path, mode=None):
-	if mode is None: mode = stat.S_IMODE(os.lstat(path).st_mode)
+	if mode is None:
+		try: mode = stat.S_IMODE(os.lstat(path).st_mode)
+		except (OSError, IOError): pass
 	kws = dict( delete=False,
 		dir=os.path.dirname(path), prefix=os.path.basename(path)+'.' )
-	with NamedTemporaryFile(**kws) as tmp:
+	with tempfile.NamedTemporaryFile(**kws) as tmp:
 		try:
-			os.fchmod(tmp.fileno(), mode)
+			if mode is not None: os.fchmod(tmp.fileno(), mode)
 			yield tmp
 			if not tmp.closed: tmp.flush()
 			os.rename(tmp.name, path)
