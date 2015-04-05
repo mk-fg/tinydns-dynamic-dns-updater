@@ -94,6 +94,10 @@ S: DEBUG:root:No address changes in valid update packet: key_id=QlH0RDCxXrI2OvL2
    [python-systemd](http://www.freedesktop.org/software/systemd/python-systemd/)
    \- to use systemd socket activation for server (--systemd option).
 
+"test.py" script also needs [plumbum](http://plumbum.readthedocs.org/),
+but shouldn't be necessary by itself (runs test server + clients, checks that
+all sent updates were applied correctly).
+
 
 
 Operation details
@@ -111,7 +115,7 @@ Operation details
    ones and non-changes are ignored server-side, as well as any otherwise
    invalid packets in general.
 
- * Since address is determined from UDP packet source, it matter whether it gets
+ * Since address is determined from UDP packet source, it matters whether it gets
    sent over IPv4 or IPv6, and whether there's any SNAT translation in-between.
 
  * If hostname is passed anywhere instead of address, it is resolved by
@@ -135,9 +139,9 @@ Operation details
    always checks mtime (and does reload) before building new files, and then
    again right before replacing (tempfile-rename) old file with a new one.
 
- * It's also safe to run several server pids from same file, as they do proper
-   locking on reading/writing to it and update old files as well as replace them
-   with new ones, but not sure when doing that might be useful.
+ * It's also safe to run several server pids from the same file, as they do
+   proper locking on reading/writing to it and update old files as well as
+   replace them with new ones, but no idea if doing that might ever be useful.
 
 
 
