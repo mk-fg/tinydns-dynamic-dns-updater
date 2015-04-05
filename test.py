@@ -20,6 +20,18 @@ ip_changes = [
 	'127.0.0.2'
 ]
 
+n, out, err = local['ip'].run('addr')
+assert not n, [n, out, err]
+for ip in set(ip_changes):
+	for line in out.splitlines():
+		if re.search(r'^\s*inet6?\s+{}(/\d+)?\s'.format(re.escape(ip)), line): break
+	else:
+		p = lambda fmt,*a,**k: print(fmt.format(*a,**k), file=sys.stderr)
+		p('ERROR: missing IP address on the network interface: {}', ip)
+		p('  Use "ip addr add {} dev lo" to add it', ip)
+		p('  All lo addresses used in test: {}', ', '.join(set(ip_changes)))
+		exit(1)
+
 with open('zone_file.example') as src:
 	keys = re.findall('skey(?:[^:\n]+)?: (\S+)', src.read())
 
