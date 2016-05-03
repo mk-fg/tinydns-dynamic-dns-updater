@@ -86,9 +86,12 @@ S: DEBUG:root:No address changes in valid update packet: key_id=QlH0RDCxXrI2OvL2
 
  * Python 2.7 (not 3.X)
 
- * [PyNaCl](http://pynacl.readthedocs.org/)
+ * [PyNaCl](http://pynacl.readthedocs.org/) or
+   [libnacl](https://libnacl.readthedocs.io/) - either one will work,
+   interoperable with each other (and use same libsodium), no difference
+   whatsoever.
 
- * [netaddr](https://github.com/drkjam/netaddr/)
+ * [netaddr](https://github.com/drkjam/netaddr/) - for the server part.
 
  * (optional)
    [python-systemd](http://www.freedesktop.org/software/systemd/python-systemd/)
@@ -127,8 +130,7 @@ Operation details
    authentication.
 
    [Ed25519 public-key signature system](http://ed25519.cr.yp.to/) is used
-   (as implemented in [PyNaCl](http://pynacl.readthedocs.org/) /
-   [libsodium](https://github.com/jedisct1/libsodium/)).
+   (as implemented in [libsodium](https://github.com/jedisct1/libsodium/)).
 
  * Timestamps are sent to discard obsolete updates and replay attacks.
 

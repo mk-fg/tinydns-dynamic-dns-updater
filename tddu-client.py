@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
@@ -6,11 +6,14 @@ import itertools as it, operator as op, functools as ft
 import os, sys, types, re, base64, struct
 import socket, time, random, warnings
 
-with warnings.catch_warnings(record=True): # cffi warnings
-	from nacl.exceptions import BadSignatureError
-	from nacl.signing import SigningKey, VerifyKey
-	from nacl.hash import sha256
 
+libnacl = nacl = None
+try: import libnacl
+except ImportError:
+	try: import nacl
+	except ImportError:
+		raise ImportError( 'Either libnacl or pynacl module'
+			' is required for this tool, neither one can be imported.' )
 
 key_id_len = 28
 sig_len = 64
@@ -19,7 +22,93 @@ msg_data_len = struct.calcsize(msg_data_fmt)
 msg_fmt = '{}s{}s'.format(msg_data_len, sig_len)
 msg_len = struct.calcsize(msg_fmt)
 
+default_bind = '::'
 default_port = 5533
+
+update_mtime_tries = 5
+
+if libnacl:
+	from libnacl.sign import Signer, Verifier
+	from libnacl.utils import rand_nonce
+
+	b64_encode = base64.urlsafe_b64encode
+	b64_decode = lambda s:\
+		base64.urlsafe_b64decode(s) if '-' in s or '_' in s else s.decode('base64')
+
+	def key_encode(key):
+		if isinstance(key, Signer): string = key.seed
+		elif isinstance(key, Verifier): string = key.vk
+		else: raise ValueError(key)
+		return b64_encode(string)
+
+	def key_decode_sk(string): return Signer(b64_decode(string))
+	def key_decode_vk(string): return Verifier(b64_decode(string).encode('hex'))
+
+	def key_get_vk(key): return Verifier(key.hex_vk())
+
+	def key_get_id(key):
+		if isinstance(key, Signer): key = key_get_vk(key)
+		return '{{:>{}s}}'.format(key_id_len).format(
+			b64_encode(libnacl.crypto_hash_sha256(key.vk))[:key_id_len] )
+
+	def key_sign(key, msg_data):
+		return key.signature(msg_data)
+
+	def key_sign_check(key, msg_data, msg_sig):
+		try: key.verify(msg_sig + msg_data)
+		except ValueError: return False
+		else: return True
+
+	def key_generate():
+		return libnacl.sign.Signer()
+
+if nacl:
+	with warnings.catch_warnings(record=True): # cffi warnings
+		from nacl.exceptions import BadSignatureError
+		from nacl.signing import SigningKey, VerifyKey
+		from nacl.hash import sha256
+
+	class URLSafeBase64Encoder(object): # in upstream PyNaCl post-0.2.3
+		encode = staticmethod(lambda d: base64.urlsafe_b64encode(d))
+		decode = staticmethod(lambda d: base64.urlsafe_b64decode(d))
+
+	def key_encode(key):
+		return key.encode(URLSafeBase64Encoder)
+
+	def key_decode_sk(string): return SigningKey(string, URLSafeBase64Encoder)
+	def key_decode_vk(string): return VerifyKey(string, URLSafeBase64Encoder)
+
+	def key_get_vk(key): return key.verify_key
+
+	def key_get_id(key):
+		if isinstance(key, SigningKey): key = key.verify_key
+		return '{{:>{}s}}'.format(key_id_len).format(
+			sha256(key.encode(), URLSafeBase64Encoder)[:key_id_len] )
+
+	def key_sign(key, msg_data):
+		return key.sign(msg_data).signature
+
+	def key_sign_check(key, msg_data, msg_sig):
+		try: key.verify(msg_data, msg_sig)
+		except BadSignatureError: return False
+		else: return True
+
+	def key_generate(): return SigningKey.generate()
+
+def test( msg='test',
+		key_enc='pbb6wrDXlLWOFMXYH4a9YHh7nGGD1VnStVYQBe9MyVU=' ):
+	from hashlib import sha256
+	key = key_generate()
+	assert key_sign_check(key_get_vk(key), msg, key_sign(key, msg))
+	key = key_decode_sk(key_enc)
+	key_vk = key_get_vk(key)
+	sign = key_sign(key, msg)
+	assert key_sign_check(key_vk, msg, sign)
+	print(sha256(''.join([
+		key_encode(key), key_encode(key_vk),
+		key_encode(key_decode_vk(key_encode(key_vk))),
+		key_get_id(key), key_get_id(key_vk),
+		msg, sign ])).hexdigest())
 
 
 class AddressError(Exception): pass
@@ -72,34 +161,11 @@ def get_socket_info( host,
 	return af, addr
 
 
-class URLSafeBase64Encoder(object): # in upstream PyNaCl post-0.2.3
-	encode = staticmethod(lambda d: base64.urlsafe_b64encode(d))
-	decode = staticmethod(lambda d: base64.urlsafe_b64decode(d))
-
-def key_encode(key):
-	return key.encode(URLSafeBase64Encoder)
-
-def key_decode(string, t=VerifyKey):
-	return t(string, URLSafeBase64Encoder)
-
-def key_decode_signing(string):
-	return key_decode(string, t=SigningKey)
-
-def key_get_id(verify_key):
-	return '{{:>{}s}}'.format(key_id_len).format(
-		sha256(verify_key.encode(), URLSafeBase64Encoder)[:key_id_len] )
-
-def key_check_sig(key, msg_data, msg_sig):
-	try: key.verify(msg_data, msg_sig)
-	except BadSignatureError: return False
-	else: return True
-
-
 def build_msg(key, ts=None, key_id=None):
 	if ts is None: ts = time.time()
-	if key_id is None: key_id = key_get_id(key.verify_key)
+	if key_id is None: key_id = key_get_id(key)
 	msg_data = struct.pack(msg_data_fmt, key_id, ts)
-	msg_sig = key.sign(msg_data).signature
+	msg_sig = key_sign(key, msg_data)
 	assert len(msg_sig) == sig_len, [msg_sig, sig_len]
 	return struct.pack(msg_fmt, msg_data, msg_sig)
 
@@ -202,9 +268,9 @@ def main(args=None):
 	log = logging.getLogger()
 
 	if opts.genkey:
-		signing_key = SigningKey.generate()
+		signing_key = key_generate()
 		print('Signing key (for this script only):\n  ', key_encode(signing_key), '\n')
-		print('Verify key (to use on server):\n  ', key_encode(signing_key.verify_key), '\n')
+		print('Verify key (to use on server):\n  ', key_encode(key_get_vk(signing_key)), '\n')
 		return
 
 	if not opts.key: parser.error('At least one key must be specified')
@@ -229,8 +295,8 @@ def main(args=None):
 	for k in opts.key:
 		if k and k[0] in '/.':
 			with open(k, 'rb') as src: k = src.read()
-		for key in map(key_decode_signing, k.split()):
-			key_id = key_get_id(key.verify_key)
+		for key in map(key_decode_sk, k.split()):
+			key_id = key_get_id(key)
 			if key_id in keys:
 				a, b = map(key_encode, [keys[key_id], key])
 				raise ValueError('key_id ({}) conflict for keys: {}, {}'.format(key_id, a, b))
