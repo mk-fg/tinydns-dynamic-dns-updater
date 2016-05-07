@@ -104,7 +104,7 @@ if nacl:
 
 	def key_generate(): return SigningKey.generate()
 
-def test( msg='test',
+def key_test( msg='test',
 		key_enc='pbb6wrDXlLWOFMXYH4a9YHh7nGGD1VnStVYQBe9MyVU=' ):
 	from hashlib import sha256
 	key = key_generate()
