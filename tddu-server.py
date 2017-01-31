@@ -9,11 +9,6 @@ from subprocess import Popen, PIPE, STDOUT
 import os, sys, types, re, base64, struct
 import socket, fcntl, stat, tempfile, random, warnings
 
-with warnings.catch_warnings(record=True): # cffi warnings
-	from nacl.exceptions import BadSignatureError
-	from nacl.signing import SigningKey, VerifyKey
-	from nacl.hash import sha256
-
 import netaddr
 
 
