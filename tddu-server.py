@@ -261,7 +261,7 @@ def zone_parse(src):
 
 		t = line[0]
 		if t in '+6':
-			name, addr_raw = line[1:].split(':', 2)
+			name, addr_raw = line[1:].split(':', 2)[:2]
 			addr, ver = addr_raw, None
 			if t == '6': ver, addr = 6, ':'.join(''.join(v) for v in it_adjacent(addr, 4))
 			elif t == '+': ver = 4
